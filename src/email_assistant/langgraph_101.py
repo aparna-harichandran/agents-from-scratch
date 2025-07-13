@@ -3,6 +3,8 @@ from langchain.chat_models import init_chat_model
 from langchain.tools import tool
 from langgraph.graph import MessagesState, StateGraph, END, START
 from dotenv import load_dotenv
+import os
+
 load_dotenv(".env")
 
 @tool
@@ -11,7 +13,22 @@ def write_email(to: str, subject: str, content: str) -> str:
     # Placeholder response - in real app would send email
     return f"Email sent to {to} with subject '{subject}' and content: {content}"
 
-llm = init_chat_model("openai:gpt-4.1", temperature=0)
+# Azure OpenAI configuration (falls back to OpenAI if Azure env vars not set)
+azure_endpoint = os.getenv("BRICK_OPENAI_ENDPOINT")
+azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+
+if azure_endpoint and azure_api_key:
+    llm = init_chat_model(
+        "azure_openai:gpt-4o",
+        temperature=0,
+        azure_endpoint=azure_endpoint.split("/openai/deployments/")[0],
+        azure_deployment="gpt-4o",
+        api_version="2025-01-01-preview",
+        api_key=azure_api_key
+    )
+else:
+    # Fallback to regular OpenAI
+    llm = init_chat_model("openai:gpt-4o", temperature=0)
 model_with_tools = llm.bind_tools([write_email], tool_choice="any")
 
 def call_llm(state: MessagesState) -> MessagesState:
