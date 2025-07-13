@@ -25,7 +25,7 @@ tools_by_name = get_tools_by_name(tools)
 # Check for Azure OpenAI configuration, fallback to OpenAI
 if os.getenv("BRICK_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
     llm = init_chat_model(
-        "azure_openai/gpt-4",
+        "azure_openai:gpt-4",
         temperature=0.0,
         azure_endpoint=os.getenv("BRICK_OPENAI_ENDPOINT"),
         azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4"),
@@ -33,7 +33,7 @@ if os.getenv("BRICK_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
         api_key=os.getenv("AZURE_OPENAI_API_KEY")
     )
 else:
-    llm = init_chat_model("openai/gpt-4o-mini", temperature=0.0)
+    llm = init_chat_model("openai:gpt-4o-mini", temperature=0.0)
 llm_router = llm.with_structured_output(RouterSchema) 
 
 # Initialize the LLM, enforcing tool use (of any available tools) for agent
