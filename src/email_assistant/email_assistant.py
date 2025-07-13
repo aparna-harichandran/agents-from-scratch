@@ -1,4 +1,5 @@
 from typing import Literal
+import os
 
 from langchain.chat_models import init_chat_model
 
@@ -17,13 +18,39 @@ load_dotenv(".env")
 tools = get_tools()
 tools_by_name = get_tools_by_name(tools)
 
-# Initialize the LLM for use with router / structured output
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
-llm_router = llm.with_structured_output(RouterSchema) 
+# Azure OpenAI configuration (falls back to OpenAI if Azure env vars not set)
+azure_endpoint = os.getenv("BRICK_OPENAI_ENDPOINT")
+azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
-# Initialize the LLM, enforcing tool use (of any available tools) for agent
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
-llm_with_tools = llm.bind_tools(tools, tool_choice="any")
+if azure_endpoint and azure_api_key:
+    # Initialize the LLM for use with router / structured output
+    llm = init_chat_model(
+        "azure_openai:gpt-4o",
+        temperature=0.0,
+        azure_endpoint=azure_endpoint.split("/openai/deployments/")[0],
+        azure_deployment="gpt-4o",
+        api_version="2025-01-01-preview",
+        api_key=azure_api_key
+    )
+    llm_router = llm.with_structured_output(RouterSchema) 
+
+    # Initialize the LLM, enforcing tool use (of any available tools) for agent
+    llm = init_chat_model(
+        "azure_openai:gpt-4o",
+        temperature=0.0,
+        azure_endpoint=azure_endpoint.split("/openai/deployments/")[0],
+        azure_deployment="gpt-4o",
+        api_version="2025-01-01-preview",
+        api_key=azure_api_key
+    )
+    llm_with_tools = llm.bind_tools(tools, tool_choice="any")
+else:
+    # Fallback to regular OpenAI
+    llm = init_chat_model("openai:gpt-4o", temperature=0.0)
+    llm_router = llm.with_structured_output(RouterSchema) 
+    
+    llm = init_chat_model("openai:gpt-4o", temperature=0.0)
+    llm_with_tools = llm.bind_tools(tools, tool_choice="any")
 
 # Nodes
 def llm_call(state: State):
