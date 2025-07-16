@@ -30,8 +30,48 @@ class CriteriaGrade(BaseModel):
     grade: bool = Field(description="Does the response meet the provided criteria?")
     justification: str = Field(description="The justification for the grade and score, including specific examples from the response.")
 
+# Initialize LLM with Azure/OpenAI fallback
+def initialize_llm():
+    """Initialize LLM with Azure OpenAI or fallback to OpenAI."""
+    import os
+    from langchain_openai import AzureChatOpenAI, ChatOpenAI
+    
+    # Check for Azure OpenAI configuration
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or os.getenv("BRICK_OPENAI_ENDPOINT")
+    azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
+    api_version = "2024-08-01-preview"  # Updated to support structured output
+    
+    if azure_endpoint and azure_api_key:
+        print("Using Azure OpenAI for evaluation")
+        # Extract the base endpoint if it's a full URL
+        if "/openai/deployments/" in azure_endpoint:
+            base_endpoint = azure_endpoint.split("/openai/deployments/")[0]
+        else:
+            base_endpoint = azure_endpoint
+            
+        return AzureChatOpenAI(
+            azure_endpoint=base_endpoint,
+            azure_deployment=azure_deployment,
+            api_version=api_version,
+            api_key=azure_api_key,
+            temperature=0
+        )
+    else:
+        # Fallback to OpenAI
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            print("Using OpenAI for evaluation")
+            return ChatOpenAI(
+                model="gpt-4o",
+                api_key=openai_api_key,
+                temperature=0
+            )
+        else:
+            raise ValueError("Either Azure OpenAI or OpenAI API key must be configured")
+
 # Create a global LLM for evaluation to avoid recreating it for each test
-criteria_eval_llm = init_chat_model("openai:gpt-4o")
+criteria_eval_llm = initialize_llm()
 criteria_eval_structured_llm = criteria_eval_llm.with_structured_output(CriteriaGrade)
 
 # Global variables for module name and imported module
