@@ -78,9 +78,23 @@ def update_memory(store, namespace, messages):
 
     # Get the existing memory
     user_preferences = store.get(namespace, "user_preferences")
-    # Update the memory
-    llm = init_chat_model("openai:gpt-4o", temperature=0.0).with_structured_output(UserPreferences)
-    result = llm.invoke(
+    
+    # Update the memory using the same Azure/OpenAI configuration as the main workflow
+    if os.getenv("BRICK_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
+        # Use Azure OpenAI
+        memory_llm = init_chat_model(
+            "azure_openai:gpt-4",
+            temperature=0.0,
+            azure_endpoint=os.getenv("BRICK_OPENAI_ENDPOINT"),
+            azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4"),
+            api_version=os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY")
+        ).with_structured_output(UserPreferences)
+    else:
+        # Fallback to regular OpenAI
+        memory_llm = init_chat_model("openai:gpt-4o-mini", temperature=0.0).with_structured_output(UserPreferences)
+    
+    result = memory_llm.invoke(
         [
             {"role": "system", "content": MEMORY_UPDATE_INSTRUCTIONS.format(current_profile=user_preferences.value, namespace=namespace)},
         ] + messages
