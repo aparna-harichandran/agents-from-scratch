@@ -1,10 +1,17 @@
 
 import sys
+import os
 from pathlib import Path
 
-# Add project root to Python path
+# Add src directory to Python path to import from main package
 project_root = Path(__file__).parent.parent
-sys.path.append(str(project_root))
+src_path = str(project_root / "src")
+sys.path.insert(0, src_path)
+
+# Clear module cache to ensure fresh imports from main package
+for module_name in list(sys.modules.keys()):
+    if module_name.startswith('email_assistant'):
+        del sys.modules[module_name]
 
 import pytest
 from email_assistant.eval.email_dataset import email_inputs, expected_tool_calls

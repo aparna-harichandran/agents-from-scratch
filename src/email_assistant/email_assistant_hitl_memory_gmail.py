@@ -1,4 +1,5 @@
 from typing import Literal
+import os
 
 from langchain.chat_models import init_chat_model
 
@@ -21,11 +22,22 @@ tools = get_tools(["send_email_tool", "schedule_meeting_tool", "check_calendar_t
 tools_by_name = get_tools_by_name(tools)
 
 # Initialize the LLM for use with router / structured output
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
+# Check for Azure OpenAI configuration, fallback to OpenAI
+if os.getenv("BRICK_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
+    llm = init_chat_model(
+        "azure_openai:gpt-4",
+        temperature=0.0,
+        azure_endpoint=os.getenv("BRICK_OPENAI_ENDPOINT"),
+        azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4"),
+        api_version=os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY")
+    )
+else:
+    llm = init_chat_model("openai:gpt-4o-mini", temperature=0.0)
 llm_router = llm.with_structured_output(RouterSchema) 
 
 # Initialize the LLM, enforcing tool use (of any available tools) for agent
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
+# Use the same LLM instance for consistency
 llm_with_tools = llm.bind_tools(tools, tool_choice="required")
 
 def get_memory(store, namespace, default_content=None):
@@ -66,9 +78,23 @@ def update_memory(store, namespace, messages):
 
     # Get the existing memory
     user_preferences = store.get(namespace, "user_preferences")
-    # Update the memory
-    llm = init_chat_model("openai:gpt-4.1", temperature=0.0).with_structured_output(UserPreferences)
-    result = llm.invoke(
+    
+    # Update the memory using the same Azure/OpenAI configuration as the main workflow
+    if os.getenv("BRICK_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
+        # Use Azure OpenAI
+        memory_llm = init_chat_model(
+            "azure_openai:gpt-4",
+            temperature=0.0,
+            azure_endpoint=os.getenv("BRICK_OPENAI_ENDPOINT"),
+            azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4"),
+            api_version=os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY")
+        ).with_structured_output(UserPreferences)
+    else:
+        # Fallback to regular OpenAI
+        memory_llm = init_chat_model("openai:gpt-4o-mini", temperature=0.0).with_structured_output(UserPreferences)
+    
+    result = memory_llm.invoke(
         [
             {"role": "system", "content": MEMORY_UPDATE_INSTRUCTIONS.format(current_profile=user_preferences.value, namespace=namespace)},
         ] + messages
